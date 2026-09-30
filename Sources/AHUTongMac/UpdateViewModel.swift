@@ -7,7 +7,7 @@
 
 import Sparkle
 import SwiftUI
-
+ 
 // 状态管理与控制器
 @MainActor
 final class UpdateViewModel: ObservableObject {
