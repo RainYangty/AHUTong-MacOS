@@ -4,6 +4,7 @@ import SwiftUI
 struct AHUTongApp: App {
     @NSApplicationDelegateAdaptor(ApplicationDelegate.self) private var applicationDelegate
     @StateObject private var store = AppStore()
+    @StateObject private var updateViewModel = UpdateViewModel()
 
     var body: some Scene {
         WindowGroup("安大通") {
@@ -17,6 +18,12 @@ struct AHUTongApp: App {
             CommandGroup(after: .sidebar) {
                 Button("刷新数据") { store.refresh() }
                     .keyboardShortcut("r", modifiers: .command)
+            }
+            CommandGroup(after: .appInfo) {
+                Button("检查更新...") {
+                    updateViewModel.checkForUpdates()
+                }
+                .disabled(!updateViewModel.canCheckForUpdates)
             }
         }
 
