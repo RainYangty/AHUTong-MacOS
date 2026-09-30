@@ -34,9 +34,9 @@ jobs:
 
       - name: Build Archive & Export App
         run: |
-          # 1. 构建 Archive
+          # 1. 使用正确的项目文件名 安大通.xcodeproj 进行 Archive
           xcodebuild archive \
-            -project "AHUTong-MacOS.xcodeproj" \
+            -project "安大通.xcodeproj" \
             -scheme "AHUTong-MacOS" \
             -configuration Release \
             -archivePath "build/AHUTong.xcarchive" \
@@ -44,9 +44,9 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_ALLOWED=NO
 
-          # 2. 导出 .app 文件
+          # 2. 导出生成的 .app 文件
           mkdir -p build/export
-          cp -R "build/AHUTong.xcarchive/Products/Applications/AHUTong-MacOS.app" "build/export/"
+          cp -R "build/AHUTong.xcarchive/Products/Applications/"*.app "build/export/"
 
       - name: Prepare Release ZIP
         run: |
