@@ -1,0 +1,97 @@
+name: Release & Sparkle Update
+
+on:
+  push:
+    tags:
+      - 'v*' # 当推送形如 v1.0.0 的 Tag 时触发流程
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  build-and-release:
+    runs-on: macos-14 # 使用 Apple Silicon (M1/M2/M3) Runner
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set Xcode Version
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Extract Tag & Version
+        id: get_version
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          VERSION=${TAG#v}
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Build Archive & Export App
+        run: |
+          # 1. 构建 Archive
+          xcodebuild archive \
+            -project "AHUTong-MacOS.xcodeproj" \
+            -scheme "AHUTong-MacOS" \
+            -configuration Release \
+            -archivePath "build/AHUTong.xcarchive" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_ALLOWED=NO
+
+          # 2. 导出 .app 文件
+          mkdir -p build/export
+          cp -R "build/AHUTong.xcarchive/Products/Applications/AHUTong-MacOS.app" "build/export/"
+
+      - name: Prepare Release ZIP
+        run: |
+          mkdir -p release_assets
+          cd build/export
+          zip -r "../../release_assets/AHUTong_${{ steps.get_version.outputs.version }}.zip" "AHUTong-MacOS.app"
+
+      - name: Download Sparkle CLI Tools & Generate Appcast
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          # 下载 Sparkle 官方命令行工具
+          SPARKLE_VERSION="2.6.4"
+          curl -L -O "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz"
+          tar -xf "Sparkle-${SPARKLE_VERSION}.tar.xz" -C ./
+
+          # 导入私钥并生成 appcast.xml
+          mkdir -p public
+          # 将当前打好的 ZIP 复制到生成目录
+          cp release_assets/*.zip public/
+          
+          # 使用 generate_appcast 自动对产物签名并生成 appcast.xml
+          ./bin/generate_appcast \
+            --ed-key-into-keychain "$SPARKLE_PRIVATE_KEY" \
+            --download-url-prefix "https://github.com/OpenAHU/AHUTong-MacOS/releases/download/${{ steps.get_version.outputs.tag }}/" \
+            public/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release_assets/*.zip
+          name: "Release ${{ steps.get_version.outputs.tag }}"
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Artifact for GitHub Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: 'public'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
